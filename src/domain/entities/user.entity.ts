@@ -1,5 +1,4 @@
-import { GenericPrimaryGeneratedColumn } from 'core/decorators/genericPrimaryGeneratedColumn.decorator';
-import { generateTimestampUUID } from 'core/utils/security.util';
+import { GenericPrimaryGeneratedColumn, generateTimestampUUID } from 'index';
 import { Entity, Column } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 

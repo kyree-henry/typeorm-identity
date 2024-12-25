@@ -1,7 +1,13 @@
-import { InvalidCredentialsError, PasswordReuseError } from "core/errors/password.error";
-import { generateSecurityStamp, generateTimestampUUID } from "core/utils/security.util";
-import { UserAlreadyExistsError } from "core/errors/user.error";
-import { IdentityUser } from "domain/entities/user.entity";
+import {
+    generateSecurityStamp,
+    generateTimestampUUID,
+    IdentityUser,
+    IdentityError,
+    IdentityResult,
+    InvalidCredentialsError,
+    PasswordReuseError
+} from "index";
+import { } from "domain/entities/user.entity";
 import { FindOptionsWhere, Repository } from "typeorm";
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
@@ -41,9 +47,22 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
     }
 
     // User Creation
-    public async CreateAsync(user: TUser, password: string): Promise<TUser> {
+    public async CreateAsync(user: TUser, password: string): Promise<IdentityResult> {
+
         if (await this.FindByEmailAsync(user.email)) {
-            throw new UserAlreadyExistsError(user.email);
+            const error = new IdentityError(
+                'DuplicateEmail',
+                `A user with the email "${user.email}" already exists.`
+            );
+            return IdentityResult.Failed(error);
+        }
+
+        if (await this.FindByNameAsync(user.userName)) {
+            const error = new IdentityError(
+                'DuplicateUserName',
+                `A user with the username "${user.userName}" already exists.`
+            );
+            return IdentityResult.Failed(error);
         }
 
         if (password) {
@@ -51,12 +70,50 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
             user.passwordHash = hashedPassword;
         }
 
-        return await this.userContext.save(user);
+        const saved = await this.userContext.save(user);
+        if (!saved) {
+            const error = new IdentityError(
+                'UserSaveFailed',
+                'There was an error saving the user to the database.'
+            );
+            return IdentityResult.Failed(error);
+        }
+
+        return IdentityResult.Success();
     }
 
-    public async UpdateAsync(user: TUser): Promise<void> {
+    public async UpdateAsync(user: TUser): Promise<IdentityResult> {
+
+        const existingUserByEmail = await this.FindByEmailAsync(user.email);
+        if (existingUserByEmail && existingUserByEmail.id !== user.id) {
+            const error = new IdentityError(
+                'DuplicateEmail',
+                `A user with the email "${user.email}" already exists.`
+            );
+            return IdentityResult.Failed(error);
+        }
+
+        const existingUserByUsername = await this.FindByNameAsync(user.userName);
+        if (existingUserByUsername && existingUserByUsername.id !== user.id) {
+            const error = new IdentityError(
+                'DuplicateUserName',
+                `A user with the username "${user.userName}" already exists.`
+            );
+            return IdentityResult.Failed(error);
+        }
+
         user.concurrencyStamp = generateTimestampUUID();
-        await this.userContext.update(user.id as string | number, user as any);
+        const updateResult = await this.userContext.update(user.id as string | number, user as any);
+
+        if (updateResult) {
+            return IdentityResult.Success();
+        } else {
+            const error = new IdentityError(
+                'UserUpdateFailed',
+                'There was an error updating the user in the database.'
+            );
+            return IdentityResult.Failed(error);
+        }
     }
 
     // Password Management
@@ -64,24 +121,54 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
         return await bcrypt.compare(password, user.passwordHash!);
     }
 
-    public async ChangePasswordAsync(user: TUser, currentPassword: string, newPassword: string): Promise<void> {
+    public async ChangePasswordAsync(user: TUser, currentPassword: string, newPassword: string): Promise<IdentityResult> {
 
         if (currentPassword === newPassword) {
-            throw new PasswordReuseError()
+            const error = new IdentityError(
+                'PasswordReuseError',
+                'The new password cannot be the same as the current password.'
+            );
+            return IdentityResult.Failed(error);
         }
 
         const isCurrentPasswordValid = await this.CheckPasswordAsync(user, currentPassword);
-        if (isCurrentPasswordValid) {
-            await this.UpdatePassword(user, newPassword);
+        if (!isCurrentPasswordValid) {
+            const error = new IdentityError(
+                'InvalidCurrentPassword',
+                'The current password is incorrect.'
+            );
+            return IdentityResult.Failed(error);
         }
 
-        throw new InvalidCredentialsError();
+        return await this.UpdatePassword(user, newPassword); 
     }
 
-    public async UpdatePassword(user: TUser, newPassword: string): Promise<void> {
-        user.passwordHash = await bcrypt.hash(newPassword, 10);
+    public async UpdatePassword(user: TUser, newPassword: string): Promise<IdentityResult> {
+        const existingUser = await this.FindByIdAsync(user.id);
+        if (!existingUser) {
+            const error = new IdentityError(
+                'UserNotFound',
+                `User with ID "${user.id}" not found.`
+            );
+            return IdentityResult.Failed(error);
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.passwordHash = hashedPassword;
+
         user.securityStamp = generateSecurityStamp();
-        await this.userContext.update(user.id as string | number, user as any);
+
+        const updateResult = await this.userContext.update(user.id as string | number, user as any);
+
+        if (updateResult) {
+            return IdentityResult.Success();
+        } else {
+            const error = new IdentityError(
+                'PasswordUpdateFailed',
+                'There was an error updating the password.'
+            );
+            return IdentityResult.Failed(error);
+        }
     }
 
     // Token Management
@@ -130,5 +217,4 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
         }
     }
 
-}
-
+} 
