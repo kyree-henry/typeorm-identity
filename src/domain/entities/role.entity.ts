@@ -2,7 +2,7 @@ import { GenericPrimaryGeneratedColumn } from 'core/decorators/genericPrimaryGen
 import { IdentityRoleClaim } from './roleClaim.entity';
 import { Entity, Column, OneToMany } from 'typeorm';
 
-@Entity()
+@Entity({ name: 'Roles', schema: 'identity' })
 export class IdentityRole<T> {
 
     @GenericPrimaryGeneratedColumn(typeof this === "string" ? "uuid" : "increment")

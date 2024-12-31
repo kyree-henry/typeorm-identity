@@ -1,8 +1,7 @@
 import { GenericPrimaryGeneratedColumn, generateTimestampUUID } from 'index';
-import { Entity, Column } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
+import { Entity, Column } from 'typeorm'; 
 
-@Entity()
+@Entity({ name: 'Users', schema: 'identity' })
 export class IdentityUser<T> {
 
     @GenericPrimaryGeneratedColumn(typeof this === "string" ? "uuid" : "increment")

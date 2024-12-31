@@ -1,7 +1,7 @@
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 import { IdentityRole } from "./role.entity"; 
 
-@Entity()
+@Entity({ name: 'RoleClaims', schema: 'identity' })
 export class IdentityRoleClaim {
 
     @PrimaryGeneratedColumn('uuid')

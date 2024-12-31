@@ -1,7 +1,7 @@
-import { Claim, IdentityRole, IdentityError, IdentityRoleClaim, RoleNotFoundError } from "index";
+import { Claim, IdentityRole, IdentityResult, IdentityError, IdentityRoleClaim, RoleNotFoundError } from "index";
 import { IdentityUserRole } from "domain/entities/userRole.entity";
-import { IdentityResult } from "core/types/identity.result";
 import { FindOptionsWhere, Repository } from "typeorm";
+import { ArgumentNullThrowHelper } from "core/utils/argument.util";
 
 export class RoleManager<TRole extends IdentityRole<number | string>> {
 
@@ -20,7 +20,7 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
 
     public async FindByIdAsync(id: number | string): Promise<TRole | null> {
 
-        if (!id) throw new Error("Role id is required");
+        ArgumentNullThrowHelper.ThrowIfNull(id, "roleId");
 
         return await this.roleContext.findOne({
             where: { id } as FindOptionsWhere<TRole>,
@@ -29,7 +29,7 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
 
     public async FindByNameAsync(roleName: string): Promise<TRole | null> {
 
-        if (!roleName) throw new Error("Role name is required");
+        ArgumentNullThrowHelper.ThrowIfNull(roleName, "roleName");
 
         const normalizedName = roleName.normalize("NFC");
         return await this.roleContext.findOne({
@@ -39,12 +39,14 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
 
     public async RoleExistsAsync(roleName: string): Promise<boolean> {
 
-        if (!roleName) throw new Error("Role name is required");
+        ArgumentNullThrowHelper.ThrowIfNull(roleName, "roleName");
 
-        return this.FindByNameAsync(roleName) !== null;
+        return await this.FindByNameAsync(roleName) !== null;
     }
 
     public async GetClaimsAsync(role: TRole): Promise<Claim[]> {
+
+        ArgumentNullThrowHelper.ThrowIfNull(role, "role");
 
         const roleExists = await this.FindByIdAsync(role.id);
         if (!roleExists) {
@@ -59,16 +61,18 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
             return [];
         }
 
-        const result = claims.map((claim) => new Claim({ ...claim }));
+        const result = claims.map((claim) => new Claim(claim.claimType, claim.claimValue));
         return result;
     }
- 
+
     // Role Creation
     public async CreateAsync(role: TRole): Promise<IdentityResult> {
-        
+
+        ArgumentNullThrowHelper.ThrowIfNull(role, "role");
+
         const validationResult = await this.ValidateRoleAsync(role);
         if (!validationResult.succeeded) return validationResult;
-        
+
         const existingRole = await this.FindByNameAsync(role.name);
         if (existingRole) {
             const error = new IdentityError(
@@ -91,10 +95,12 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
     }
 
     public async UpdateAsync(role: TRole): Promise<IdentityResult> {
-        
+
+        ArgumentNullThrowHelper.ThrowIfNull(role, "role");
+
         const validationResult = await this.ValidateRoleAsync(role);
         if (!validationResult.succeeded) return validationResult;
-         
+
         const existingRole = await this.FindByIdAsync(role.id);
         if (!existingRole) {
             const error = new IdentityError(
@@ -118,6 +124,9 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
     }
 
     public async DeleteAsync(role: TRole): Promise<IdentityResult> {
+        
+        ArgumentNullThrowHelper.ThrowIfNull(role, "role");
+
         const existingRole = await this.FindByIdAsync(role.id);
         if (!existingRole) {
             const error = new IdentityError(
@@ -157,7 +166,11 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
         }
     }
 
+    // Claims Management 
     public async AddClaimAsync(role: TRole, claim: Claim): Promise<IdentityResult> {
+
+        ArgumentNullThrowHelper.ThrowIfNull(role, "role");
+        ArgumentNullThrowHelper.ThrowIfNull(claim, "claim");
 
         const existingRole = await this.FindByIdAsync(role.id);
         if (!existingRole) {
@@ -196,6 +209,9 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
 
     public async RemoveClaimAsync(role: TRole, claim: Claim): Promise<IdentityResult> {
 
+        ArgumentNullThrowHelper.ThrowIfNull(role, "role");
+        ArgumentNullThrowHelper.ThrowIfNull(claim, "claim");
+        
         const existingRole = await this.FindByIdAsync(role.id);
         if (!existingRole) {
             const error = new IdentityError(
@@ -232,21 +248,32 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
     }
 
     private async FindRoleClaimAsync(roleId: string, claim: Claim): Promise<Claim | null> {
+
+        ArgumentNullThrowHelper.ThrowIfNull(roleId, "roleId");
+        ArgumentNullThrowHelper.ThrowIfNull(claim, "claim");
+
         const foundClaim = await this.roleClaimContext.findOne({
             where: { roleId, claimType: claim.claimType, claimValue: claim.claimValue }
         });
 
-        return new Claim({ ...foundClaim });
+        if (!foundClaim) {
+            return null;
+        }
+
+        return new Claim(foundClaim.claimType, foundClaim.claimValue);
     }
 
     private async RemoveRoleClaimsAsync(roleId: string): Promise<boolean> {
+
+        ArgumentNullThrowHelper.ThrowIfNull(roleId, "roleId");
+        
         const result = await this.roleClaimContext.delete({ roleId });
         return result.affected > 0;
     }
 
     private async ValidateRoleAsync(role: IdentityRole<any>): Promise<IdentityResult> {
         const errors: IdentityError[] = [];
-    
+
         // Validate role name
         if (!role.name || role.name.trim().length === 0) {
             errors.push(new IdentityError(
@@ -254,7 +281,7 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
                 'Role name cannot be empty.'
             ));
         }
-    
+
         // Optionally, validate the length of the name
         if (role.name.length < 3 || role.name.length > 50) {
             errors.push(new IdentityError(
@@ -262,7 +289,7 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
                 'Role name must be between 3 and 50 characters long.'
             ));
         }
-    
+
         // Validate role description (optional)
         if (role.description && role.description.length > 255) {
             errors.push(new IdentityError(
@@ -270,14 +297,14 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
                 'Role description cannot be longer than 255 characters.'
             ));
         }
-    
+
         // If there are errors, return them
         if (errors.length > 0) {
             return IdentityResult.Failed(...errors);
         }
-    
+
         // If everything is valid, return success
         return IdentityResult.Success();
     }
-    
+
 }
