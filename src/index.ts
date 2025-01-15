@@ -11,3 +11,9 @@ export * from "domain/entities/role.entity";
 export * from 'domain/entities/roleClaim.entity';
 export * from "domain/entities/userRole.entity";
 export * from "domain/entities/userClaim.entity";
+
+export * from "infrastructure/role.manager";
+export * from "infrastructure/user.manager"; 
+
+
+export * from "typedi";

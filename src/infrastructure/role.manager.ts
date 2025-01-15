@@ -1,22 +1,24 @@
-import { Claim, IdentityRole, IdentityResult, IdentityError, IdentityRoleClaim, RoleNotFoundError } from "index";
 import { IdentityUserRole } from "domain/entities/userRole.entity";
 import { FindOptionsWhere, Repository } from "typeorm";
 import { ArgumentNullThrowHelper } from "core/utils/argument.util";
+import { Service } from "typedi";
+import {
+    Claim,
+    IdentityRole,
+    IdentityResult,
+    IdentityError,
+    IdentityRoleClaim,
+    RoleNotFoundError
+} from "index";
 
+@Service()
 export class RoleManager<TRole extends IdentityRole<number | string>> {
-
-    private readonly roleContext: Repository<TRole>;
-    private readonly roleClaimContext: Repository<IdentityRoleClaim>;
-    private readonly userRoleContext: Repository<IdentityUserRole>;
+ 
     constructor(
-        roleRepository: Repository<TRole>,
-        roleClaimRepository: Repository<IdentityRoleClaim>,
-        userRoleRepository: Repository<IdentityUserRole>,
-    ) {
-        this.roleContext = roleRepository;
-        this.roleClaimContext = roleClaimRepository;
-        this.userRoleContext = userRoleRepository;
-    }
+        private readonly roleContext: Repository<TRole>,
+        private readonly roleClaimContext: Repository<IdentityRoleClaim>,
+        private readonly userRoleContext: Repository<IdentityUserRole>,
+    ) { }
 
     public async FindByIdAsync(id: number | string): Promise<TRole | null> {
 
@@ -124,7 +126,7 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
     }
 
     public async DeleteAsync(role: TRole): Promise<IdentityResult> {
-        
+
         ArgumentNullThrowHelper.ThrowIfNull(role, "role");
 
         const existingRole = await this.FindByIdAsync(role.id);
@@ -211,7 +213,7 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
 
         ArgumentNullThrowHelper.ThrowIfNull(role, "role");
         ArgumentNullThrowHelper.ThrowIfNull(claim, "claim");
-        
+
         const existingRole = await this.FindByIdAsync(role.id);
         if (!existingRole) {
             const error = new IdentityError(
@@ -266,7 +268,7 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
     private async RemoveRoleClaimsAsync(roleId: string): Promise<boolean> {
 
         ArgumentNullThrowHelper.ThrowIfNull(roleId, "roleId");
-        
+
         const result = await this.roleClaimContext.delete({ roleId });
         return result.affected > 0;
     }
@@ -306,5 +308,4 @@ export class RoleManager<TRole extends IdentityRole<number | string>> {
         // If everything is valid, return success
         return IdentityResult.Success();
     }
-
 }

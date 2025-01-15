@@ -10,13 +10,17 @@ import {
     IdentityRole,
     RoleNotFoundError,
     IdentityUserRole,
-    Claim
+    Claim,
+    Service,
+    Container
 } from "index";
 import { FindOptionsWhere, Repository } from "typeorm";
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { ArgumentNullThrowHelper } from "core/utils/argument.util";
-
+import { IdentityOptions } from "core/types/identity.options";
+ 
+@Service()
 export class UserManager<TUser extends IdentityUser<number | string>> {
 
     private readonly encryptionKey = 'your_secret_key';
@@ -24,21 +28,15 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
 
     private ConfirmEmailTokenPurpose = "EmailConfirmation";
     private ResetPasswordTokenPurpose = "ResetPassword";
-
-    private readonly userContext: Repository<TUser>;
-    private readonly roleContext: Repository<IdentityRole<number | string>>;
-    private readonly userRoleContext: Repository<IdentityUserRole>;
-    private readonly userClaimContext: Repository<IdentityUserClaim>;
+    private identityOptions: IdentityOptions = Container.get('identityOptions');
 
     constructor(
-        userRepository: Repository<TUser>,
-        roleRepository: Repository<IdentityRole<number | string>>,
-        userRoleRepository: Repository<IdentityUserRole>,
-    ) {
-        this.userContext = userRepository;
-        this.roleContext = roleRepository;
-        this.userRoleContext = userRoleRepository;
-    }
+        private readonly userContext: Repository<TUser>,
+        private readonly roleContext: Repository<IdentityRole<number | string>>,
+        private readonly userRoleContext: Repository<IdentityUserRole>,
+        private readonly userClaimContext: Repository<IdentityUserClaim>,
+
+    ) { }
 
     public async FindByNameAsync(userName: string): Promise<TUser | null> {
 
@@ -66,7 +64,6 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
             where: { id } as FindOptionsWhere<TUser>,
         });
     }
-
 
     // User Creation
     public async CreateAsync(user: TUser, password: string): Promise<IdentityResult> {
@@ -154,8 +151,7 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
         const currentTime = new Date();
         return user.lockoutEnd > currentTime;
     }
-
-
+ 
     // Email Management
     public async SetEmailAsync(user: TUser, email: string): Promise<IdentityResult> {
 
@@ -168,7 +164,7 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
                 return IdentityResult.Success();
             }
 
-            return IdentityResult.Failed(new IdentityError('EmailAlreadyExists', 
+            return IdentityResult.Failed(new IdentityError('EmailAlreadyExists',
                 'This email is already associated with another account.'));
         }
 
@@ -202,7 +198,7 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
             return IdentityResult.Failed(error);
         }
 
-        return this.SetEmailAsync(user, newEmail);        
+        return this.SetEmailAsync(user, newEmail);
     }
 
     // Claims Management
@@ -543,6 +539,33 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
         } catch (error) {
             console.error("Error adding user to roles:", error);
             return IdentityResult.Failed(new IdentityError('RoleAssignmentError', 'Error assigning roles.'));
+        }
+    }
+
+    public async RemoveFromRoleAsync(user: TUser, roleName: string): Promise<IdentityResult> {
+
+        ArgumentNullThrowHelper.ThrowIfNull(user, 'user');
+        ArgumentNullThrowHelper.ThrowIfNull(roleName, 'roleName');
+
+        if (await (this.IsInRoleAsync(user, roleName))) {
+            return IdentityResult.Failed({ code: 'UserNotInRole', description: `"User is not in role ${roleName}.` })
+        }
+
+        const role = await this.roleContext.findOne({ where: { normalizedName: roleName.normalize("NFC") } })
+
+        const removeResult = await this.userRoleContext.delete({
+            roleId: role.id?.toString(),
+            userId: user.id?.toString(),
+        });
+
+        if (removeResult.affected > 0) {
+            return IdentityResult.Success();
+        } else {
+            const error = new IdentityError(
+                'ClaimRemoveFailed',
+                'There was an error removing the claim from the role.'
+            );
+            return IdentityResult.Failed(error);
         }
     }
 
