@@ -1,4 +1,4 @@
-import { GenericPrimaryGeneratedColumn, generateTimestampUUID } from 'index';
+import { GenericPrimaryGeneratedColumn, generateTimestampUUID } from '../../core/index';
 import { Entity, Column } from 'typeorm'; 
 
 @Entity({ name: 'Users', schema: 'identity' })

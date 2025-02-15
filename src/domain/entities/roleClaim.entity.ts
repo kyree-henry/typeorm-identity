@@ -22,5 +22,4 @@ export class IdentityRoleClaim {
     constructor(request: Partial<IdentityRoleClaim> = {}) {
         Object.assign(this, request);
     }
-
 }

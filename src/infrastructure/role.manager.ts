@@ -1,17 +1,19 @@
-import { IdentityUserRole } from "domain/entities/userRole.entity";
+import { IdentityUserRole } from "../domain/index";
+import { ArgumentNullThrowHelper } from "../core/utils/argument.util";
 import { FindOptionsWhere, Repository } from "typeorm";
-import { ArgumentNullThrowHelper } from "core/utils/argument.util";
-import { Service } from "typedi";
+import { injectable } from "inversify";
+import {
+    IdentityResult,
+    IdentityError,
+    RoleNotFoundError
+} from "../core/index";
 import {
     Claim,
     IdentityRole,
-    IdentityResult,
-    IdentityError,
     IdentityRoleClaim,
-    RoleNotFoundError
-} from "index";
+} from "../domain/index";
 
-@Service()
+@injectable()
 export class RoleManager<TRole extends IdentityRole<number | string>> {
  
     constructor(

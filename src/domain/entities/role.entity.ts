@@ -1,4 +1,4 @@
-import { GenericPrimaryGeneratedColumn } from 'core/decorators/genericPrimaryGeneratedColumn.decorator';
+import { GenericPrimaryGeneratedColumn } from '../../core/decorators/genericPrimaryGeneratedColumn.decorator';
 import { IdentityRoleClaim } from './roleClaim.entity';
 import { Entity, Column, OneToMany } from 'typeorm';
 
