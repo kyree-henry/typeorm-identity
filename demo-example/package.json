@@ -16,16 +16,18 @@
   "dependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/express": "^5.0.1",
-    "@types/node": "^22.14.0",
-    "bcrypt": "^5.1.1",
     "express": "^5.1.0",
     "inversify": "^7.5.0",
     "reflect-metadata": "^0.2.2",
+    "ts-node-dev": "^2.0.0",
+    "typeorm-identity": "file:.."
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "bcrypt": "^5.1.1",
     "sqlite3": "^5.1.7",
     "ts-node": "^10.9.2",
-    "ts-node-dev": "^2.0.0",
     "typeorm": "^0.3.22",
-    "typeorm-identity": "file:..",
     "typescript": "^5.8.3"
   }
 }
