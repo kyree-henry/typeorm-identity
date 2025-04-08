@@ -1,19 +1,2 @@
-export * from "core/errors/roleError";
-export * from "core/errors/user.error";
-export * from 'core/utils/security.util';
-export * from "core/errors/password.error";
-export * from "core/types/identity.result";
-export * from 'core/decorators/genericPrimaryGeneratedColumn.decorator';
-
-export * from "domain/model/claim.model";
-export * from 'domain/entities/user.entity';
-export * from "domain/entities/role.entity";
-export * from 'domain/entities/roleClaim.entity';
-export * from "domain/entities/userRole.entity";
-export * from "domain/entities/userClaim.entity";
-
-export * from "infrastructure/role.manager";
-export * from "infrastructure/user.manager"; 
-
-
-export * from "typedi";
+export { AddIdentity, AddTypeOrmDataSource } from "./infrastructure/configs/identity.configuration"
+export { IdentityOptions } from "./infrastructure/configs/identity.options"

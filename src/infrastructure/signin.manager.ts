@@ -1,7 +1,8 @@
-import { IdentityUser, UserManager } from "index";
-import { Service } from "typedi"
+import { IdentityUser } from "domain/index";
+import { UserManager } from "infrastructure/index";
+import { injectable } from "inversify";
 
-@Service()
+@injectable()
 export class SignInManager<TUser extends IdentityUser<number | string>> {
 
     constructor(

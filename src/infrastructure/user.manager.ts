@@ -1,49 +1,64 @@
 import {
     generateSecurityStamp,
     generateTimestampUUID,
-    IdentityUser,
     IdentityError,
     IdentityResult,
-    InvalidCredentialsError,
-    PasswordReuseError,
+    RoleNotFoundError,
+} from "../core/index";
+import {
+    IdentityUser,
     IdentityUserClaim,
     IdentityRole,
-    RoleNotFoundError,
     IdentityUserRole,
     Claim,
-    Service,
-    Container
-} from "index";
-import { FindOptionsWhere, Repository } from "typeorm";
+} from "../domain/index";
+import { DataSource, FindOptionsWhere } from "typeorm";
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { ArgumentNullThrowHelper } from "core/utils/argument.util";
-import { IdentityOptions } from "core/types/identity.options";
- 
-@Service()
+import { ArgumentNullThrowHelper } from "../core/utils/argument.util";
+import { IdentityOptions } from "./configs/identity.options";
+import { inject, injectable } from "inversify";
+
+@injectable()
 export class UserManager<TUser extends IdentityUser<number | string>> {
 
-    private readonly encryptionKey = 'your_secret_key';
     private readonly tokenExpirationTime = 3600;
 
     private ConfirmEmailTokenPurpose = "EmailConfirmation";
     private ResetPasswordTokenPurpose = "ResetPassword";
-    private identityOptions: IdentityOptions = Container.get('identityOptions');
+
+    private identityOptions: IdentityOptions;
 
     constructor(
-        private readonly userContext: Repository<TUser>,
-        private readonly roleContext: Repository<IdentityRole<number | string>>,
-        private readonly userRoleContext: Repository<IdentityUserRole>,
-        private readonly userClaimContext: Repository<IdentityUserClaim>,
+        @inject('IdentityOptions') identityOptions: IdentityOptions,
+        @inject('DataSource') private readonly dataSource: DataSource,
+    ) {
+        this.identityOptions = identityOptions;
+    }
 
-    ) { }
+    private get userContext() {
+        return this.dataSource.getRepository<TUser>(IdentityUser);
+    }
+
+    private get roleContext() {
+        return this.dataSource.getRepository(IdentityRole);
+    }
+
+    private get userRoleContext() {
+        return this.dataSource.getRepository(IdentityUserRole);
+    }
+
+    private get userClaimContext() {
+        return this.dataSource.getRepository(IdentityUserClaim);
+    }
 
     public async FindByNameAsync(userName: string): Promise<TUser | null> {
 
         ArgumentNullThrowHelper.ThrowIfNull(userName, "userName");
 
+        const normalizedUserName = userName.normalize("NFC")
         return await this.userContext.findOne({
-            where: { normalizedUserName: userName?.normalize("NFC") } as FindOptionsWhere<TUser>,
+            where: { normalizedUserName } as FindOptionsWhere<TUser>
         });
     }
 
@@ -51,8 +66,9 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
 
         ArgumentNullThrowHelper.ThrowIfNull(email, "email");
 
+        const normalizedEmail = email.normalize("NFC");
         return await this.userContext.findOne({
-            where: { normalizedEmail: email?.normalize("NFC") } as FindOptionsWhere<TUser>,
+            where: { normalizedEmail } as FindOptionsWhere<TUser>
         });
     }
 
@@ -61,7 +77,7 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
         ArgumentNullThrowHelper.ThrowIfNull(id, "id");
 
         return await this.userContext.findOne({
-            where: { id } as FindOptionsWhere<TUser>,
+            where: { id } as FindOptionsWhere<TUser>
         });
     }
 
@@ -87,7 +103,7 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
         }
 
         if (password) {
-            const hashedPassword = await bcrypt.hash(password, 10);
+            const hashedPassword = await bcrypt.hash(password, this.identityOptions.password.saltOrRounds);
             user.passwordHash = hashedPassword;
         }
 
@@ -144,14 +160,18 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
 
         ArgumentNullThrowHelper.ThrowIfNull(user, "user");
 
+        if (!this.identityOptions.lockout.allowedForNewUsers) {
+            return false;
+        }
+
         if (!user.lockoutEnd) {
-            return false; // If lockoutEnd is not set, the user is not locked out
+            return false;
         }
 
         const currentTime = new Date();
         return user.lockoutEnd > currentTime;
     }
- 
+
     // Email Management
     public async SetEmailAsync(user: TUser, email: string): Promise<IdentityResult> {
 
@@ -579,7 +599,7 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
         const tokenPayload = { userId: user.id, purpose, expiresAt };
 
         const iv = crypto.randomBytes(16);
-        const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(this.encryptionKey, 'hex'), iv);
+        const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(this.identityOptions.user.encryptionKey, 'hex'), iv);
         const encrypted = cipher.update(JSON.stringify(tokenPayload), 'utf8', 'hex') + cipher.final('hex');
 
         return iv.toString('hex') + encrypted; // Prepend IV to the token
@@ -618,12 +638,11 @@ export class UserManager<TUser extends IdentityUser<number | string>> {
     private decryptToken(token: string): any {
         try {
             const iv = Buffer.from(token.slice(0, 32), 'hex'); // Extract IV from the token
-            const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(this.encryptionKey, 'hex'), iv);
+            const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(this.identityOptions.user.encryptionKey, 'hex'), iv);
             const decrypted = decipher.update(token.slice(32), 'hex', 'utf8') + decipher.final('utf8');
             return JSON.parse(decrypted);
         } catch (error) {
             return null;
         }
     }
-
 } 
